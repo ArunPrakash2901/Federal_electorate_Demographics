@@ -1,0 +1,196 @@
+---
+title: "Repeating codes"
+author: "Arun Prakash Krishnasamy"
+date: "`r Sys.Date()`"
+output: html_document
+---
+```{r}
+library(sf)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r Geopackage - Task 4, message = FALSE}
+gpkg_layers <- st_layers("data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg")
+gpkg_layers
+
+```
+
+```{r SA1 data from GPKG - Task 4}
+
+vicmap_sa1_G02 <- read_sf("data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg", layer = "G02_SA1_2021_VIC")
+vicmap_sa1_G02
+names(vicmap_sa1_G02)
+
+```
+
+```{r Wrangling data for Map MWR - Task 4}
+# Set projection to GDA1994 using EPSG:4283
+st_crs(aec_map$geometry,4283)
+  
+# Transform projection from GDA1994 to GDA2020 using EPSG:7844
+aec_map$geometry = st_transform(aec_map$geometry, 7844) 
+
+# Get SA1 Centroids
+vicmap_sa1_G02_w_centroid <- vicmap_sa1_G02 |>
+  mutate(centroid = st_centroid(geom))
+
+# Determine with SA1 centroids overlap with which electoral regions
+electoral_intersects = st_intersects(vicmap_sa1_G02_w_centroid$centroid, 
+                               aec_map$geometry, 
+                               sparse = FALSE) 
+arr_ind = which(electoral_intersects == TRUE, arr.ind = TRUE)
+sa1_ind = arr_ind[,1] 
+division_ind = arr_ind[,2]
+division_name = aec_map$Elect_div[division_ind]
+sa1_name = vicmap_sa1_G02_w_centroid$SA1_NAME_2021[sa1_ind]
+
+# Save the SA1 region and its matching electorate into a data frame
+sa1_divisions = data.frame(SA1_NAME_2021 = sa1_name, 
+                           DivisionNm = division_name)
+
+# Add the electorate names to the map
+vicmap_sa1_G02_electorates  <- vicmap_sa1_G02 %>% 
+  right_join(sa1_divisions)
+
+# Combine the data from electorates together using group_by
+vicmap_sa1_G02_electorates_grouped_MWR =  vicmap_sa1_G02_electorates |>
+  group_by(DivisionNm) |> 
+  summarise(Median_rent_weekly = mean(Median_rent_weekly)) |>
+  ungroup()
+
+# Plot results to check assignment
+
+VIC_map_MWR <- ggplot() +
+   geom_sf(data = vicmap_sa1_G02_electorates_grouped_MWR,
+           aes(geometry = geom, fill = Median_rent_weekly)) + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+VIC_map_MWR
+
+```
+
+
+Map of the entire state of Victoria, with its median weekly rent, is not a good visualization to draw conclusions from, as a result a scoped view would give us more clear picture.
+
+For this we choose certain electorates and set the coordinate limits of the maps
+```{r Scoped view of Map MWR - Task 4}
+
+# set the coordinate limits for the chosen electorates
+crop_map_MWR <- vicmap_sa1_G02_electorates_grouped_MWR %>% 
+  st_crop(xmin = 144.8, xmax = 145.2,
+          ymin = -38.1, ymax = -37.6)
+
+cropped_map_MWR <- ggplot(crop_map_MWR) + 
+  geom_sf(aes(geometry = geom, fill = Median_rent_weekly))
+
+cropped_map_MWR
+
+```
+
+Importantly, a map consist of name of the locations, similarly we label the locations of the map as below
+
+```{r labelling the Map MWR - Task 4}
+
+data_for_labels = crop_map_MWR %>% 
+      filter(DivisionNm %in% c("Kooyong", "Goldstein", "Melbourne", "Menzies","Maribyrnong", "Wills", "Scullin", "McEwen", "Chrisholm"))
+
+cropped_map_MWR +
+  geom_sf_label(data = data_for_labels,
+    aes(label = DivisionNm, geometry = geom),
+    size = 2)	
+
+```
+### Observations on Median weekly rent:
+
+<u>Rent Differences Across Electorates:<u/>
+
+In Goldstein County, the median rent is over AUD 550 per week.
+Kooyong, with rents exceeding AUD 500 per week.
+Meanwhile, in Menzies County, the median rent is nearly AUD 450 per week.
+
+
+<u>Urban vs. Suburban Rent Trends:<u/>
+
+  - We observe a trend where median rent decreases as we move from urban to suburban areas.
+  - Suburbs like Scullin, Wills, and Marribyrnong have notably lower weekly rents compared to the urban areas, illustrating more affordable housing options in these areas.
+
+<u>Median Total Personal Income Weekly:<u/>
+
+
+```{r Map data MTPIW - Task 4}
+aec_map <- read_sf(here::here("data/vic-july-2021-esri/E_VIC21_region.shp"))
+```
+
+```{r Wrangling data for Map M_tot_prsnl_inc_w - Task 4}
+
+# Set projection to GDA1994 using EPSG:4283
+st_crs(aec_map$geometry,4283)
+  
+# Transform projection from GDA1994 to GDA2020 using EPSG:7844
+aec_map$geometry = st_transform(aec_map$geometry, 7844) 
+
+# Get SA1 Centroids
+vicmap_sa1_G02_w_centroid <- vicmap_sa1_G02 |>
+  mutate(centroid = st_centroid(geom))
+
+# Determine with SA1 centroids overlap with which electoral regions
+electoral_intersects = st_intersects(vicmap_sa1_G02_w_centroid$centroid, 
+                               aec_map$geometry, 
+                               sparse = FALSE) 
+arr_ind = which(electoral_intersects == TRUE, arr.ind = TRUE)
+sa1_ind = arr_ind[,1] 
+division_ind = arr_ind[,2]
+division_name = aec_map$Elect_div[division_ind]
+sa1_name = vicmap_sa1_G02_w_centroid$SA1_NAME_2021[sa1_ind]
+
+# Save the SA1 region and its matching electorate into a data frame
+sa1_divisions = data.frame(SA1_NAME_2021 = sa1_name, 
+                           DivisionNm = division_name)
+
+# Add the electorate names to the map
+vicmap_sa1_G02_electorates  <- vicmap_sa1_G02 %>% 
+  right_join(sa1_divisions)
+
+# Combine the data from electorates together using group_by
+vicmap_sa1_G02_electorates_grouped_MTPIW = vicmap_sa1_G02_electorates |>
+  group_by(DivisionNm) |> 
+  summarise(Median_tot_prsnl_inc_weekly = mean(Median_tot_prsnl_inc_weekly)) |>
+  ungroup()
+
+# Plot results to check assignment
+
+VIC_map_MTPIW <- ggplot() +
+   geom_sf(data = vicmap_sa1_G02_electorates_grouped_MTPIW,
+           aes(geometry = geom, fill = Median_tot_prsnl_inc_weekly)) + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+VIC_map_MTPIW
+
+```
+
+```{r Scoped view of Map MTPIW - Task 4}
+
+# set the coordinate limits for the chosen electorates
+crop_map_MTPIW <- vicmap_sa1_G02_electorates_grouped_MTPIW %>% 
+  st_crop(xmin = 144.8, xmax = 145.2,
+          ymin = -38.1, ymax = -37.6)
+
+cropped_map_MTPIW <- ggplot(crop_map_MTPIW) + 
+  geom_sf(aes(geometry = geom, fill = Median_tot_prsnl_inc_weekly))
+
+cropped_map_MTPIW
+
+```
+
+```{r labelling the Map MTPIW - Task 4}
+
+data_for_labels = crop_map_MTPIW %>% 
+      filter(DivisionNm %in% c("Kooyong", "Goldstein", "Melbourne", "Menzies","Maribyrnong", "Wills", "Scullin", "McEwen", "Chrisholm", "Fraser", "Higgins", "Hotham"))
+
+cropped_map_MTPIW +
+  geom_sf_label(data = data_for_labels,
+    aes(label = DivisionNm, geometry = geom),
+    size = 2)	
+
+```

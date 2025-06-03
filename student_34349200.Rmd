@@ -1,0 +1,805 @@
+---
+title: "Assignment II"
+author: "Arun Prakash Krishnasamy"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    theme: cosmo
+    highlight: textmate
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      eval = TRUE, 
+                      cache = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE)
+options(width=80, digits=3)
+```
+
+```{r Libraries, echo = FALSE}
+
+library(tidyverse)
+library(forcats)
+library(readxl)
+library(sf)
+library(janitor)
+library(purrr)
+```
+
+# Objectives
+
+### Electorates won by Independent candidates in 2022 federal election
+
+The data required to answer the task is available in the [**Australian Electoral Commission**](https://www.aec.gov.au/) **AEC**.
+
+All data about the past election is available in the **Information centre**.
+
+-   The pathway for navigating the results data is as below:
+
+    Australian Electoral Commission \> Information centre \> Federal election \> 2022 Federal election \> 2022 Federal election results
+
+Different sets of data are accessible in the "Tally Room" download section, covering information on Candidates & seats, First preferences, two candidate preferred, two party preferred, Distribution, flow of preferences, Enrollment, informal votes, turnout, and total votes.
+
+To find the number of electorates won by Independent party in 2022, we use the **Distribution of preferences by candidate by division**, because this provides us with the information on which party got elected in a particular division.
+
+```{r Data sourcing - Task 1}
+# Download link for the data
+url = "https://results.aec.gov.au/27966/Website/Downloads/HouseDopByDivisionDownload-27966.csv"
+
+fed_election_2022 <- read_csv(url, skip = 1) # Skip the first row as it contains metadata information
+
+```
+
+```{r Task 1 }
+
+# Select winning Independent candidates
+electorates_IND <- fed_election_2022 |> 
+  filter(PartyNm == "Independent" & 
+           Elected == "Y" & 
+           CalculationType == "Preference Count" &
+           CountNumber == 0) |> 
+  select(PartyAb, DivisionNm) |> 
+  distinct(DivisionNm)
+electorates_IND
+```
+
+Total of ten electorates seats were won by the Independent candidates, namely Fowler, Mackellar, North Sydney, Warringah, Wentworth, Clark, Goldstein, Indi, Kooyong and Curtin.
+
+### Formerly Liberal seats
+
+For this the same dataset, **Distribution of preferences by candidate by division** , can be used, as it also includes information on which party previously held each seat.
+
+Initially, the dataset is filtered to have only the seats won by the liberals in the previous election.
+
+```{r Wrangling - Task 2}
+
+formerly_liberal <-  fed_election_2022 |> 
+  filter(PartyNm == "Liberal" & 
+           HistoricElected == "Y" & 
+           Elected == "N") |> 
+  select(PartyAb, DivisionNm) |> 
+  distinct(DivisionNm)
+formerly_liberal
+```
+
+To have only the seats lost to Independent candidates `inner_join()` is used, as it only returns matching observations in both variables.
+
+```{r Task 2}
+lost_liberal_seats <- inner_join(formerly_liberal, 
+                                 electorates_IND, by = "DivisionNm")
+lost_liberal_seats
+```
+
+Liberal party lost **Six Electorates** to the Independent party, namely Mackellar, North Sydney, Wentworth, Goldstein, Kooyong and Curtin.
+
+Let us plot some distribution graphs with respect to age, gender and income in one of the electorate won by the Independent.
+
+### Choosing Goldstein as the electorate
+
+The data on age, income and gender for Goldstein should be imported:
+
+<u>Data acquisition:</u>
+
+The information on age, gender and income of the people is available in [**Australian Bureau of Statistics**](https://www.abs.gov.au/).
+
+Go to the Census section on the dashboard and click on "Find Census data." Here, you'll find numerous methods to locate the dataset you're looking for. Under "Find Census data," on the left-hand side, select "Census data tools," then choose "Data packs."
+
+-   The navigational pathway is as below:
+
+    Australian Bureau of Statistics \> Census \> Find Census data \> Census data tools \> Data packs.
+
+DataPacks contain comprehensive data about people, families and dwellings for all Census geographies ranging from Australia down to Statistical Area Level 1 (SA1).
+
+They are containers of data based on Census Community Profiles and include digital boundary information, metadata and reference documents to enable you to read the data.
+
+There is overwhelming number of data packs available, but with the help of the metadata available, containing unique ID for a particular topic, it is clear that **G17** has data on **"Total personal income (weekly) by age by sex"**.
+
+The G17 consist of three sub divisional data for male, female and person,i.e., G17A, G17B and G17C. To read all at once, `glue()` can be used.
+
+The `glue::glue()` is used to import all the sub divisional data, essentially, the glue::glue() function is used to insert the values of "geo" and "alpha" into the file path template and it creates paths for each value of alpha in the sequence.
+
+```{r Reading data - Task 3}
+
+# setting up path (for the particular division)
+census_path_CED <- here::here("data/2021_GCP_all_for_VIC_short-header/2021 Census GCP All Geographies for VIC")
+
+# setting up path (for the entire state Victoria)
+census_path_VIC <- here::here("data/2021_GCP_all_for_VIC_short-header/2021 Census GCP States and Territories for VIC")
+
+CED_paths <- glue::glue(census_path_CED, "/{geo}/VIC/2021Census_G17{alpha}_VIC_CED.csv",
+                        geo = "CED", alpha = c("A", "B", "C"))
+
+VIC_paths <- glue::glue(census_path_VIC, "/{geo}/2021Census_G17{alpha}_VIC_STE.csv",
+                        geo = "STE", alpha = c("A", "B", "C"))
+
+
+CED_G17A <- read_csv(CED_paths[1])
+CED_G17B <- read_csv(CED_paths[2])
+CED_G17C <- read_csv(CED_paths[3])
+
+VIC_G17A <- read_csv(VIC_paths[1])
+VIC_G17B <- read_csv(VIC_paths[2])
+VIC_G17C <- read_csv(VIC_paths[3])
+
+head(CED_G17A)
+head(CED_G17B)
+head(CED_G17C)
+
+head(VIC_G17A)
+head(VIC_G17B)
+head(VIC_G17C)
+```
+
+A function can be created, so as to avoid repeating the code logic and ensure conciseness and reproducibility ,to do the following task:
+
+-   Transforming the dataset from wide to long format will enhance readability and usability by consolidating multiple variables into a single column, making data manipulation and analysis simpler.
+
+-   Combines dataset G17A, G17B, and G17C into a single dataset using bind_rows().
+
+-   Replaces inappropriate naming conventions using `string_replace`.
+
+-   Expanding the dataset to separate different values into each variable.
+
+This function can also work for the STE dataset, which is used for comparison purposes.
+
+```{r Function - Task 3}
+
+process_dataset <- function(dataset) {
+  dataset_long <- dataset |> 
+    pivot_longer(cols = -1, names_to = "classification", values_to = "count")
+  
+  dataset_long_processed <- dataset_long |> 
+    filter(!str_detect(string = classification, pattern = "Tot"),
+           !str_detect(classification, pattern = "PI_NS")) |> 
+    mutate(
+      classification = str_replace(classification, "Neg_Nil_income", "-Inf_0"),
+      classification = str_replace(classification, "Neg_Nil_incme", "-Inf_0"),
+      classification = str_replace(classification, "Negtve_Nil_incme", "-Inf_0"),
+      classification = str_replace(classification, "more", "Inf"),
+      classification = str_replace(classification, "85ov", "85_110_yrs"),
+      classification = str_replace(classification, "85_yrs_ovr", "85_110_yrs"))
+  
+  dataset_tidy <- dataset_long_processed |> 
+    mutate(classification = str_remove(classification, "_yrs")) |> 
+    separate_wider_delim(cols = classification, delim = "_",
+                         names = c("sex", "income_min", "income_max", "age_min", "age_max"))
+  
+  return(dataset_tidy)
+}
+
+# List of datasets
+dataset_1 <- list(CED_G17A, CED_G17B, CED_G17C)
+dataset_2 <- list(VIC_G17A, VIC_G17B, VIC_G17C)
+
+# Apply the function to each dataset and combine them
+CED_G17_tidy <- dataset_1 |> 
+  lapply(process_dataset) |> 
+  bind_rows()
+
+VIC_tidy <- dataset_2 |> 
+  lapply(process_dataset) |> 
+  bind_rows()
+```
+
+The data now includes all the Commonwealth Electoral Divisions (CED), but for this analysis, Goldstein is the focus. However, the final dataset doesn't have specific information about Goldstein, only a **"CED code"** is available.
+
+Specific CED codes for locations is available in the excel file named "2021Census_geog_desc_1st_2nd_3rd_release", in the Metadata folder.
+
+```{r CED code search - Task 3}
+# Reading the metadata
+CED_code_Goldstein <- read_excel("data/2021_GCP_all_for_VIC_short-header/2021 Census GCP All Geographies for VIC/CED/VIC/Metadata/2021Census_geog_desc_1st_2nd_3rd_release.xlsx", sheet = "2021_ASGS_Non_ABS_Structures")
+
+CED_code_Goldstein <- CED_code_Goldstein |> 
+  filter(Census_Name_2021 == "Goldstein") |> 
+  select(Census_Code_2021, Census_Name_2021)
+CED_code_Goldstein
+```
+
+Furthermore, you can easily find the area code for Goldstein by searching on the ABS website. As a result, the area code for Goldstein is [**CED217**](https://abs.gov.au/census/find-census-data/quickstats/2021/CED217).
+
+Similarly to get the code for Victoria,
+
+```{r VIC code search- Task 3}
+
+STE_code_VIC <- read_excel("data/2021_GCP_all_for_VIC_short-header/2021 Census GCP All Geographies for VIC/CED/VIC/Metadata/2021Census_geog_desc_1st_2nd_3rd_release.xlsx", 
+                                 sheet = "2021_ASGS_MAIN_Structures") # sheet that contains STE codes
+STE_code_VIC <- STE_code_VIC |> 
+   filter(Census_Name_2021 == "Victoria") |> 
+  select(Census_Code_2021, Census_Name_2021)
+STE_code_VIC  
+```
+
+<u>**A)Gender Distribution:**</u>
+
+```{r Graph data - Task 3}
+
+CED_G17_tidy <- CED_G17_tidy |> 
+  unite("income", c(income_min, income_max), remove = FALSE) |>
+  unite("age", c(age_min, age_max), remove = FALSE) |> 
+  filter(CED_CODE_2021 == "CED217") # negating electoral divisions other than Goldstein
+
+VIC_tidy <- VIC_tidy |> 
+  unite("income", c(income_min, income_max), remove = FALSE) |>
+  unite("age", c(age_min, age_max), remove = FALSE)
+
+head(CED_G17_tidy)
+head(VIC_tidy)
+```
+
+**It should be noted that, the STE code filtering is not necessary in case of STE data, because it contains only data about Victoria.**
+
+```{r, Preparation of Graph data GD - Task 3}
+GD_GST <- CED_G17_tidy  |> 
+  filter(sex != "P")  |> 
+  group_by(sex)  |> 
+  summarise(count = sum(count, na.rm = TRUE)) 
+
+GD_VIC <- VIC_tidy  |> 
+  filter(sex != "P")  |> 
+  group_by(sex)  |> 
+  summarise(count = sum(count, na.rm = TRUE))
+
+
+GD_GST$location<- "Goldstein" # Creating new column location
+GD_VIC$location <- "Victoria"
+GD_combined <- rbind(GD_GST, GD_VIC)
+
+# A new column percentage is calculated as both values are not in scale
+GD_combined <- GD_combined |> 
+  group_by(location) |> 
+  mutate(percentage = count / sum(count) * 100)
+
+GD_combined
+```
+
+```{r Gender Distribution plot - Task 3}
+
+Gender_Dist <- ggplot(GD_combined , 
+                      aes(x = location,
+                          y = percentage, 
+                          fill = sex)) +
+  geom_col(position = "dodge") +  # Use dodge position for side-by-side bars
+  labs(title = "Gender Distribution in Goldstein and Victoria from 2021",
+       x = "Location",
+       y = "Percentage",
+       fill = "Sex") +
+  theme_minimal()
+Gender_Dist
+```
+
+#### Observations (Gender Ditribution)
+
+-   In Victoria, there is a greater proportion of females than males, as depicted by the taller bar representing females compared to males.
+
+-   The same can be observed for Goldstein, but with higher proportion.
+
+<u>**B)Age Distribution:**</u>
+
+```{r, Preparation of Graph data AD - Task 3}
+
+AD_GST <- CED_G17_tidy  |> 
+  group_by(age)  |> 
+  summarise(count = sum(count, na.rm = TRUE))
+
+AD_VIC <-  VIC_tidy  |> 
+  group_by(age)  |> 
+  summarise(count = sum(count, na.rm = TRUE))
+
+AD_GST$location<- "Goldstein" # Creating new column location
+AD_VIC$location <- "Victoria"
+AD_combined <- rbind(AD_GST, AD_VIC)
+AD_combined
+
+AD_combined <- AD_combined |> 
+  group_by(location) |> 
+  mutate(percentage = count / sum(count) * 100)
+
+AD_combined
+```
+
+```{r Age Distribution plot - Task 3}
+
+AD_Dist <- ggplot(AD_combined , 
+                      aes(x = percentage,
+                          y = age, 
+                          fill = location)) +
+  geom_col(position = "dodge") +  # Use dodge position for side-by-side bars
+  labs(title = "Age Distribution in Goldstein and Victoria from 2021",
+       x = "Percentage",
+       y = "Age",
+       fill = "Location") +
+  theme_minimal()
+AD_Dist
+```
+
+#### Observations (Age Ditribution)
+
+-   The age group with **highest population** in **Goldstein** is between **45 to 54 years old**, in contrary the **Victoria** has highest population between **25 to 34 years old**.
+
+-   Both young, between 15 and 19 years old, and old population, between 85 and 110 years old, are higher in Goldstein compared to Victoria.
+
+<u>**C)Income Distribution:**</u>
+
+```{r Preparation of Graph data ID - Task 3}
+
+ID_GST <- CED_G17_tidy  |> 
+  group_by(income)  |> 
+  summarise(count = sum(count, na.rm = TRUE))  |> 
+  arrange(desc(count))
+
+ID_VIC <- VIC_tidy  |> 
+  group_by(income)  |> 
+  summarise(count = sum(count, na.rm = TRUE))  |> 
+  arrange(desc(count))
+
+ID_GST$location<- "Goldstein" # Creating new column location
+ID_VIC$location <- "Victoria"
+ID_combined <- rbind(ID_GST, ID_VIC)
+ID_combined
+
+ID_combined <- ID_combined |> 
+  group_by(location) |> 
+  mutate(percentage = count / sum(count) * 100)
+
+ID_combined
+```
+
+```{r Income Distribution plot - Task 3 }
+
+ID_Dist <- ggplot(ID_combined , 
+                      aes(x = percentage,
+                          y = income, 
+                          fill = location)) +
+  geom_col(position = "dodge") +  # Use dodge position for side-by-side bars
+  labs(title = "Income Distribution in Goldstein and Victoria from 2021",
+       x = "Percentage",
+       y = "Income",
+       fill = "Location") +
+  theme_minimal()
+ID_Dist
+
+```
+
+#### Observations (Income Distribution)
+
+-   In Victoria, it looks like people earn a wider range of incomes. The bars on the chart for incomes in Victoria are more spread out than the ones for Goldstein, but in Goldstein, it seems like more people are in a similar income range.
+
+-   A kind of similar evenly distributed pattern can be observed in Goldstein. Although, there are more high income earners in Goldstein than Victoria with respect to their corresponding population.
+
+<u>**C)Income, sex & age distribution:**</u>
+
+```{r Income, sex & age distribution GST - Task 3}
+
+income_sex_age_distribution_GST <- CED_G17_tidy |>
+  filter(sex != "P") |>
+  ggplot(aes(x = age, y = count, fill = sex)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~income) +
+  theme_bw(base_size = 11) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.3)) +
+  ggtitle("Income, sex & age distribution in Goldstein from 2021 Census")
+income_sex_age_distribution_GST
+```
+
+```{r Income, sex & age distribution VIC - Task 3}
+
+income_sex_age_distribution_VIC <- VIC_tidy |>
+  filter(sex != "P") |>
+  ggplot(aes(x = age, y = count, fill = sex)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~income) +
+  theme_bw(base_size = 11) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.3)) +
+  ggtitle("Income, sex & age distribution in Victoria from 2021 Census")
+income_sex_age_distribution_VIC
+```
+
+### Overall Observations
+
+-   Goldstein looks to be more well-spread when it comes to incomes across age groups, with more men in the high-income ranges and a noticeable number of women in the lower income brackets.
+
+-   In contrast, Victoria's wages follow a more straightforward pattern of rising from 25 to 34 years of age and later falling with age. The figure for men in Victoria is in the \$2000-\$3000 range, contrasting with Goldstein where we have more men earning above \$3500.\
+
+-   In both fields women mainly concentrate in lower income brackets; however, the specific age groups and income levels differ between Goldstein and Victoria.
+
+### Median Weekly Rent and Median Total Personal Income Analysis
+
+The geopackages are available in the Australian Bureau of Statistics, [ABS](https://www.abs.gov.au/).
+
+GeoPackages contain comprehensive data about people, families and dwellings for Census geographical areas ranging from Statistical Areas Level 1 (SA1) to the whole of Australia.
+
+GeoPackages are Census data linked to geographical boundary data from the **Australian Statistical Geography Standard (ASGS)** in a SQLite container.
+
+To navigate to the download page of geopackages the path is as below:
+
+Australian Bureau of Statistics \> Census \> Find Census data \> Census data tools \> GeoPacks
+
+The following attributes are set:
+
+-   Census year - 2021
+-   State or territory - Victoria
+-   with table options - G02 \~ Selected medians and averages
+-   GDA type - GDA2020
+
+Initially the Geopackage is loaded and the layers are checked.
+
+```{r Geopackage - Task 4, message = FALSE}
+
+gpkg_layers <- st_layers("data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg")
+gpkg_layers
+
+```
+
+The layer "G02_CED_2021_VIC" is selected from which two variables has to be chosen.
+
+```{r SA1 data from GPKG - Task 4}
+
+vicmap_sa1_G02 <- read_sf("data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg", layer = "G02_SA1_2021_VIC")
+vicmap_sa1_G02
+names(vicmap_sa1_G02)
+```
+
+The two variables which are beneficial in terms of politics and election can be **"Median_age_persons"** and **"Median_tot_prsnl_inc_weekly"**.
+
+<u>Median rent per week:</u>
+
+-   Gives the median weekly rent a person pays for the stay.
+
+-   Rent prices can illustrates the affordability of housing. It can also indicate the composition of the population(renters and homeowners)
+
+-   This can influence political preferences of the demographics.
+
+-   As for the huge rents – they are number one enemy for the tenants. This means that people will tend to vote for those that want to make sure that the rent is affordable.
+
+-   Parties could get more votes by promising to assist on accommodation expenditures. However, the parties not talking about rent issues might lose support from the electorate.
+
+<u>Median Total Personal Income Weekly:</u>
+
+-   Gives the median total personal income per week.
+
+-   Income levels often has correlation with the outcome of an election, where wealthy individuals have different grievances compared to the middle class and poor individuals.
+
+-   For example, Lower income areas might lean on policies supporting social welfare, while higher income areas might want tax policies or business incentives.
+
+<u> Spatial data:</u>
+
+Spatial data on Federal electorate boundary can be found in [Federal electoral boundary GIS data](https://www.aec.gov.au/Electorates/gis/gis_datadownload.htm) in the official Australian Electoral Commision website.
+
+After agreeing to the license we will be directed to the download page where we choose the spatial data of Victoria, for this analysis ".shp" format is downloaded and used.
+
+```{r Map data MWR - Task 4}
+aec_map <- read_sf(here::here("data/vic-july-2021-esri/E_VIC21_region.shp"))
+```
+
+In this analysis we are choosing two variables which equals to two graphs, to avoid repeating the codes a function can be created.
+
+```{r Function - Task 4, warning=FALSE, message=FALSE}
+
+# Define a function to process map data
+process_map_data <- function(map_data, property, coords, divisions) {
+  # Set projection to GDA1994 using EPSG:4283
+  st_crs(map_data$geometry, 4283)
+  
+  # Transform projection from GDA1994 to GDA2020 using EPSG:7844
+  map_data$geometry = st_transform(map_data$geometry, 7844) 
+  
+  # Get SA1 Centroids
+  vicmap_sa1_G02_w_centroid <- vicmap_sa1_G02 |>
+    mutate(centroid = st_centroid(geom))
+  
+  # Determine which SA1 centroids overlap with which electoral regions
+  electoral_intersects = st_intersects(vicmap_sa1_G02_w_centroid$centroid, 
+                                      map_data$geometry, 
+                                      sparse = FALSE) 
+  arr_ind = which(electoral_intersects == TRUE, arr.ind = TRUE)
+  sa1_ind = arr_ind[,1] 
+  division_ind = arr_ind[,2]
+  division_name = map_data[[divisions]][division_ind]
+  sa1_name = vicmap_sa1_G02_w_centroid$SA1_NAME_2021[sa1_ind]
+  
+  # Save the SA1 region and its matching electorate into a data frame
+  sa1_divisions = data.frame(SA1_NAME_2021 = sa1_name, 
+                             DivisionNm = division_name)
+  
+  # Add the electorate names to the map data
+  vicmap_sa1_G02_electorates <- vicmap_sa1_G02 |> 
+    right_join(sa1_divisions)
+  
+  # Combine the data from electorates together using group_by
+  grouped_data <- vicmap_sa1_G02_electorates |>
+    group_by(DivisionNm) |>
+    summarise_at(vars({{property}}), ~mean(., na.rm = TRUE)) |>
+    ungroup()
+  
+  # Plot results to check assignment
+  map_plot <- ggplot() +
+    geom_sf(data = grouped_data,
+            aes(geometry = geom, fill = {{property}})) + 
+    theme_bw() +
+    theme(legend.position = "bottom")
+  
+  # set the coordinate limits for the chosen electorates
+  cropped_map <- grouped_data |>
+    st_crop(xmin = coords[1], xmax = coords[2],
+            ymin = coords[3], ymax = coords[4])
+  
+  cropped_plot <- ggplot(cropped_map) + 
+    geom_sf(aes(geometry = geom, fill = {{property}})) +
+     theme(
+      legend.position = "bottom",
+      legend.title = element_text(size = 10), 
+      legend.text = element_text(size = 8),    
+      plot.title = element_text(size = 12),    
+      axis.title = element_blank()             
+    )
+  
+  # Labelling the Map
+  data_for_labels <- cropped_map |>
+    filter(DivisionNm %in% c("Kooyong", "Goldstein", "Melbourne", "Menzies", "Maribyrnong", "Wills", "Scullin", "McEwen", "Chrisholm", "Fraser", "Higgins", "Hotham"))
+  
+  labelled_plot <- cropped_plot +
+    geom_sf_label(data = data_for_labels,
+                  aes(label = DivisionNm, geometry = geom),
+                  size = 2)
+  
+  list(map_plot = map_plot, cropped_plot = cropped_plot, labelled_plot = labelled_plot)
+  
+  
+}
+
+# Usage for Map MWR
+map_MWR <- process_map_data(aec_map, Median_rent_weekly, c(144.8, 145.2, -38.1, -37.6), "Elect_div")
+
+# Usage for Map MTPIW
+map_MTPIW <- process_map_data(aec_map, Median_tot_prsnl_inc_weekly, c(144.8, 145.2, -38.1, -37.6), "Elect_div")
+
+```
+
+#### Median rent per week
+
+```{r Map VIC MWR - Task 4}
+
+map_MWR$map_plot
+```
+
+Map of the entire state of Victoria, with its median weekly rent, is not a good visualization to draw conclusions from, because the much smaller locations are tiny and does not illustrates the varying median weekly rents with the color gradients.
+
+As a result a scoped view would give us more clear picture.
+
+For this we choose certain electorates and set the coordinate limits of the maps.
+
+```{r Scoped view of Map MWR - Task 4}
+
+map_MWR$cropped_plot
+
+```
+
+Now that we have the scoped view of the map, it's important to note that a map includes the names of locations. Similarly, we label the locations on the map as follows:
+
+```{r labelling the Map MWR - Task 4, echo=FALSE}
+
+print(map_MWR$labelled_plot)
+
+```
+
+##### Observations on Median weekly rent
+
+<u>Rent Differences Across Electorates:</u>
+
+-   In Goldstein County, the median rent is over AUD 550 per week. Kooyong, with rents exceeding AUD 500 per week.
+
+-   In Menzies County, the median rent is nearly AUD 450 per week.
+
+<u>Urban vs. Suburban Rent Trends:</u>
+
+-   We observe a trend where median rent decreases as we move from urban to suburban areas.
+
+-   Suburbs like Scullin, Wills, and Marribyrnong have notably lower weekly rents compared to the urban areas, illustrating more affordable housing options in these areas.
+
+#### Median Total Personal Income Weekly
+
+```{r labelling the Map MTPIW - Task 4}
+
+map_MTPIW$labelled_plot
+
+```
+
+##### Observations on Median total personal income per week
+
+-   Regions such as Goldstein and Kooyong exhibit a higher median income, indicating that residents in these areas tend to earn more compared to those in other regions.
+
+-   Even though Kooyong and Goldstein are wealthy regions based on median income, they were won by independent candidates. This suggests that despite residents earning more on average, they chose independent candidates who focused on local concerns or transparency, rather than sticking to traditional party choices.
+
+-   Different job sectors offer different pay scales. Regions with more finance, tech, or professional services jobs often have higher median incomes compared to areas with more manufacturing, retail, or hospitality jobs.
+
+-   Wealthy people can afford to live in so called high cost-of-living locations, which implicates on high median income level.
+
+# Referendum
+
+A referendum is conducted when citizens believe there should be alterations to their current constitution. Changes are implemented if the majority of voters support "Yes".
+
+<u>How it works:</u>
+
+**1. A Bill is passed by Parliament**
+
+Before a referendum can be held, a bill outlining the proposed changes to the constitution must be passed by both houses of the Federal Parliament, or alternatively passed twice in either the House of Representatives or the Senate.
+
+**2. A Writ is issued**
+
+The Governor-General issues a writ for a referendum which, like an election must be held on a Saturday. It can be held with an ordinary election but can also be held separately.
+
+**3. Australians vote**
+
+The earliest a referendum can occur is the first Saturday falling two months and 33 days after the bill is passed. The latest is the final Saturday falling before six months has elapsed since the bill was passed.
+
+There can be several proposed changes on a referendum ballot paper for voters to consider. If voters agree with a proposed change, they write ‘yes’ in the square on the ballot paper. If they do not agree with a proposed change, they write ‘no’ in the square.
+
+<u>Data acquisition:</u>
+
+You can find data on previously held referendums in Australia on the Australian Electoral Commission (AEC) website. To access the information for the 2023 Referendum, follow these steps:
+
+1.Go to the [AEC](www.aec.gov.au) website:
+
+2.Navigate to the "Referendums" from the Information Centre dropdown menu.
+
+3.Look for the section titled "Previous Referendums" and click on it.
+
+4.Within the list of previous referendums, locate and click on the "2023 Referendum.
+
+Once you are on the page for the 2023 Referendum, you will find a section titled "Downloads and Statistics" under the "Supporting Information" tab. Click on this section to access the [raw data](https://www.aec.gov.au/Elections/referendums/files/ReferendumResultsByVoteType.csv) , under "Results by vote type", for the referendum results.
+
+```{r Data sourcing - Task 5}
+url = "https://www.aec.gov.au/Elections/referendums/files/ReferendumResultsByVoteType.csv"
+ref_data <- read_csv(url)
+ref_data
+```
+
+We will use the `janitor` package to clean up the variable names in the dataset for better readability.
+
+```{r Clean Variables - Task 5}
+
+ref_data_clean <- ref_data |> clean_names()
+
+names <- names(ref_data_clean)
+head(names, 10)
+names(ref_data_clean)
+```
+
+We have filtered the dataset to include observations only for the chosen electorate, Goldstein.
+
+```{r Yes Percentage - Task 5}
+
+ref_data_GST <- ref_data_clean |> 
+  filter(division == "Goldstein")
+
+# Calculate the total "Yes" votes for each row
+ref_data_GST <- ref_data_GST |>
+  mutate(total_yes = sum(ordinary_yes_votes, absent_yes_votes,
+                         provisional_yes_votes, pre_poll_yes_votes,
+                         postal_yes_votes))
+
+# Calculate the total votes (Yes + No + Informal) for each row
+ref_data_GST <- ref_data_GST |>
+  mutate(total_votes = sum(ordinary_yes_votes, absent_yes_votes,
+                           provisional_yes_votes, pre_poll_yes_votes,
+                           postal_yes_votes, ordinary_no_votes,
+                           absent_no_votes, provisional_no_votes,
+                           pre_poll_no_votes, postal_no_votes,
+                           ordinary_informal_votes, absent_informal_votes,
+                           provisional_informal_votes, pre_poll_informal_votes,
+                           postal_informal_votes))
+
+# Calculate the percentage of "Yes" votes for each row
+ref_data_GST <- ref_data_GST |>
+  mutate(yes_percentage = (total_yes / total_votes) * 100)
+
+
+ref_data_GST$yes_percentage
+
+```
+
+The **Yes percentage** for Goldstein electorate is **55.7%**
+
+Since this referendum was about adding an Indigenous voice in Parliament, it'd be helpful to know how many people in our chosen area identify as Indigenous or Torres Strait Islander.
+
+To find this information, we revisit the ABS website's [datapacks page](https://www.abs.gov.au/census/find-census-data/datapacks?release=2021&product=IP&geography=ALL&header=S). We'll choose the "Aboriginal and/or Torres Strait Islander Peoples (Indigenous) Profile" datapack type, set the geography to Victoria, and select the 2021 census year to download the data.
+
+Now explore and search for suitable topic related to finding the Indigenous Demographics or the Indigenous population.
+
+**"I02"** variable can be beneficial to find the number of indigenous people in the chosen electorate as it contains information on **Indigenous Status by Sex**.
+
+The interesting thing to note in the downloaded zip file is that there is no data with respect to SA1 regions in this folder.
+
+Since it is small geographic area among ABS data, the package that describes Indigenous characteristics is not provided for these regions in order to preserve people privacy. Moreover, the small sample sizes in the communities with a very low population of Indigenous people might cause misinformation to be presented in the representation of those data.
+
+# Is my electorate Representative of the broader population
+
+<u>**Voter Behavior:**</u>
+
+Independent Candidate Wins: Despite higher incomes, Goldstein and Kooyong elected independent candidates.
+
+Observation: Voters in these areas might prioritize local concerns over traditional party affiliations, possibly differing from the state's usual voting patterns.
+
+<u>**Socioeconomic Diversity:**</u>
+
+Higher Median Incomes: Goldstein and Kooyong have higher incomes.
+
+Observation: This might mean these areas are more affluent, possibly not fully representing the state's diverse socioeconomic groups.
+
+<u>**Age Distribution:**</u>
+
+Goldstein's Older Population: Goldstein has more residents aged 45 to 54.
+
+Observation: This might not perfectly reflect the state's age groups, impacting Goldstein's representativeness in terms of age.
+
+<u>**Gender Imbalance:**</u>
+
+More Females in Goldstein: Goldstein has a higher proportion of females.
+
+Observation: This might not match the state's gender distribution, affecting Goldstein's representation.
+
+<u>**Housing Affordability:**</u>
+
+Higher Median Rents: Goldstein and Kooyong have higher rents.
+
+Observation: This could mean these areas are less affordable for lower-income residents, potentially not fully representing all income levels in the state.
+
+# Citations
+
+Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J, Robinson D, Seidel DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). “Welcome to the tidyverse.” *Journal of Open Source Software*, *4*(43), 1686. <doi:10.21105/joss.01686> <https://doi.org/10.21105/joss.01686>.
+
+Wickham H (2023). *forcats: Tools for Working with Categorical Variables (Factors)*. R package version 1.0.0, <https://CRAN.R-project.org/package=forcats>.
+
+Wickham H, Bryan J (2023). *readxl: Read Excel Files*. R package version 1.4.3, <https://CRAN.R-project.org/package=readxl>.
+
+Pebesma E, Bivand R (2023). *Spatial Data Science: With applications in R*. Chapman and Hall/CRC. <doi:10.1201/9780429459016> <https://doi.org/10.1201/9780429459016>, <https://r-spatial.org/book/>.
+
+Pebesma E (2018). “Simple Features for R: Standardized Support for Spatial Vector Data.” *The R Journal*, *10*(1), 439-446. <doi:10.32614/RJ-2018-009> <https://doi.org/10.32614/RJ-2018-009>, <https://doi.org/10.32614/RJ-2018-009>.
+
+Firke S (2023). *janitor: Simple Tools for Examining and Cleaning Dirty Data*. R package version 2.2.0, <https://CRAN.R-project.org/package=janitor>.
+
+Wickham H, Henry L (2023). *purrr: Functional Programming Tools*. R package version 1.0.2, <https://CRAN.R-project.org/package=purrr>.
+
+```{r Lib citation, echo=FALSE}
+
+c("tidyverse", "forcats", "readxl", "sf", "janitor", "purrr") |>
+  map(citation) |>
+  print(style = "text")
+```
+
+[Australian Electoral Commission](https://www.aec.gov.au/)
+
+[**Australian Bureau of Statistics**](https://www.abs.gov.au/)
+
+   **OpenAI. (2022). ChatGPT (Version 3.5) [Computer software]. <https://openai.com/>**
+
+**Function for Task 3** ![](data/Function%20Task%203.jpg)
+
+   **OpenAI. (2022). ChatGPT (Version 3.5) [Computer software]. <https://openai.com/>**
+
+**Function for Task 4**![](data/Function%20Task%204.jpg)
