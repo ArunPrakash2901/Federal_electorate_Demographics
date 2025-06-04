@@ -3,6 +3,8 @@ title: "Assignment II"
 author: "Arun Prakash Krishnasamy"
 date: "`r Sys.Date()`"
 output:
+  pdf_document:
+    toc: true
   html_document:
     toc: true
     toc_float:
@@ -450,7 +452,9 @@ Initially the Geopackage is loaded and the layers are checked.
 
 ```{r Geopackage - Task 4, message = FALSE}
 
-gpkg_layers <- st_layers("data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg")
+gpkg_file <- "data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg"
+
+gpkg_layers <- st_layers(gpkg_file)
 gpkg_layers
 
 ```
