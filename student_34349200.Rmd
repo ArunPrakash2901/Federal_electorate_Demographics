@@ -3,8 +3,6 @@ title: "Assignment II"
 author: "Arun Prakash Krishnasamy"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
-    toc: true
   html_document:
     toc: true
     toc_float:
@@ -12,6 +10,8 @@ output:
       smooth_scroll: true
     theme: cosmo
     highlight: textmate
+  pdf_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -148,13 +148,6 @@ VIC_G17A <- read_csv(VIC_paths[1])
 VIC_G17B <- read_csv(VIC_paths[2])
 VIC_G17C <- read_csv(VIC_paths[3])
 
-head(CED_G17A)
-head(CED_G17B)
-head(CED_G17C)
-
-head(VIC_G17A)
-head(VIC_G17B)
-head(VIC_G17C)
 ```
 
 A function can be created, so as to avoid repeating the code logic and ensure conciseness and reproducibility ,to do the following task:
@@ -249,8 +242,6 @@ VIC_tidy <- VIC_tidy |>
   unite("income", c(income_min, income_max), remove = FALSE) |>
   unite("age", c(age_min, age_max), remove = FALSE)
 
-head(CED_G17_tidy)
-head(VIC_tidy)
 ```
 
 **It should be noted that, the STE code filtering is not necessary in case of STE data, because it contains only data about Victoria.**
@@ -321,7 +312,6 @@ AD_combined <- AD_combined |>
   group_by(location) |> 
   mutate(percentage = count / sum(count) * 100)
 
-AD_combined
 ```
 
 ```{r Age Distribution plot - Task 3}
@@ -368,7 +358,6 @@ ID_combined <- ID_combined |>
   group_by(location) |> 
   mutate(percentage = count / sum(count) * 100)
 
-ID_combined
 ```
 
 ```{r Income Distribution plot - Task 3 }
@@ -455,7 +444,6 @@ Initially the Geopackage is loaded and the layers are checked.
 gpkg_file <- "data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg"
 
 gpkg_layers <- st_layers(gpkg_file)
-gpkg_layers
 
 ```
 
@@ -464,8 +452,6 @@ The layer "G02_CED_2021_VIC" is selected from which two variables has to be chos
 ```{r SA1 data from GPKG - Task 4}
 
 vicmap_sa1_G02 <- read_sf("data/Geopackage_2021_G02_VIC_GDA2020/G02_VIC_GDA2020.gpkg", layer = "G02_SA1_2021_VIC")
-vicmap_sa1_G02
-names(vicmap_sa1_G02)
 ```
 
 The two variables which are beneficial in terms of politics and election can be **"Median_age_persons"** and **"Median_tot_prsnl_inc_weekly"**.
@@ -680,7 +666,7 @@ Once you are on the page for the 2023 Referendum, you will find a section titled
 ```{r Data sourcing - Task 5}
 url = "https://www.aec.gov.au/Elections/referendums/files/ReferendumResultsByVoteType.csv"
 ref_data <- read_csv(url)
-ref_data
+
 ```
 
 We will use the `janitor` package to clean up the variable names in the dataset for better readability.
@@ -689,9 +675,6 @@ We will use the `janitor` package to clean up the variable names in the dataset 
 
 ref_data_clean <- ref_data |> clean_names()
 
-names <- names(ref_data_clean)
-head(names, 10)
-names(ref_data_clean)
 ```
 
 We have filtered the dataset to include observations only for the chosen electorate, Goldstein.
@@ -726,6 +709,7 @@ ref_data_GST <- ref_data_GST |>
 ref_data_GST$yes_percentage
 
 ```
+
 
 The **Yes percentage** for Goldstein electorate is **55.7%**
 
